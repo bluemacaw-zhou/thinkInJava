@@ -6,6 +6,7 @@ import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 public class TerminalOperationsTest {
@@ -27,7 +28,8 @@ public class TerminalOperationsTest {
                 .stream()
                 .filter(e -> e.getSalary().compareTo(SALARY_20000) > 0)
                 .findFirst()
-                .orElse(null);
+                .orElseThrow(RuntimeException::new);
+                // .orElse(null);
 
         System.out.println(employee);
     }
@@ -79,4 +81,10 @@ public class TerminalOperationsTest {
     }
 
     // groupBy
+    @Test
+    public void groupTest() {
+        List<Employee> employees = Common.getEmployeeList();
+        Map<Character, List<Employee>> map = employees.stream().collect(Collectors.groupingBy(e -> e.getName().charAt(0)));
+        System.out.println(map);
+    }
 }
