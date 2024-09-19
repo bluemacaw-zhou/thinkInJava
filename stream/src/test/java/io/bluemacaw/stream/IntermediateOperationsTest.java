@@ -1,5 +1,6 @@
 package io.bluemacaw.stream;
 
+import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
 
 import java.math.BigDecimal;
@@ -9,6 +10,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+@Slf4j
 public class IntermediateOperationsTest {
     private static final BigDecimal SALARY_1000 = new BigDecimal("1000.0");
 
@@ -30,7 +32,8 @@ public class IntermediateOperationsTest {
             return null;
         }).filter(Objects::nonNull).collect(Collectors.toList());
 
-        System.out.println(dstEmployees);
+
+        log.info("{}", dstEmployees);
     }
 
     // peek
@@ -43,7 +46,7 @@ public class IntermediateOperationsTest {
                 .peek(System.out::println)
                 .collect(Collectors.toList());
 
-        System.out.println(dstEmployees);
+        log.info("{}", dstEmployees);
     }
 
     // flatMap
@@ -55,6 +58,6 @@ public class IntermediateOperationsTest {
                 .flatMap(Collection::stream)
                 .collect(Collectors.toList());
 
-        System.out.println(names);
+        log.info("{}", names);
     }
 }

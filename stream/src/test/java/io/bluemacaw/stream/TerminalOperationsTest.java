@@ -1,5 +1,6 @@
 package io.bluemacaw.stream;
 
+import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
 
 import java.math.BigDecimal;
@@ -9,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+@Slf4j
 public class TerminalOperationsTest {
     private static final BigDecimal SALARY_20000 = new BigDecimal("20000.0");
 
@@ -31,7 +33,7 @@ public class TerminalOperationsTest {
                 .orElseThrow(RuntimeException::new);
                 // .orElse(null);
 
-        System.out.println(employee);
+        log.info("{}", employee);
     }
 
     // count
@@ -44,7 +46,7 @@ public class TerminalOperationsTest {
                 .filter(e -> e.getSalary().compareTo(SALARY_20000) > 0)
                 .count();
 
-        System.out.println(count);
+        log.info("{}", count);
     }
 
     // sort
@@ -57,7 +59,7 @@ public class TerminalOperationsTest {
                 .sorted((e1, e2) -> e2.getSalary().compareTo(e1.getSalary()))
                 .collect(Collectors.toList());
 
-        System.out.println(dstEmployees);
+        log.info("{}", dstEmployees);
     }
 
     // distinct
@@ -65,7 +67,8 @@ public class TerminalOperationsTest {
     public void distinct() {
         List<Integer> intList = Arrays.asList(2, 5, 3, 2, 4, 3);
         List<Integer> dstIntList = intList.stream().distinct().collect(Collectors.toList());
-        System.out.println(dstIntList);
+
+        log.info("{}", dstIntList);
     }
 
     // match
@@ -77,7 +80,7 @@ public class TerminalOperationsTest {
         boolean oneMod2 = intList.stream().anyMatch(i -> i % 2 == 0);
         boolean noneMod3 = intList.stream().noneMatch(i -> i % 3 == 0);
 
-        System.out.println("allMod2: " + allMod2 + ", oneMod2: " + oneMod2 + ", noneMod3: " + noneMod3);
+        log.info("allMod2: {}, oneMod2: {}, noneMod3: {}", allMod2, oneMod2, noneMod3);
     }
 
     // groupBy
@@ -85,6 +88,7 @@ public class TerminalOperationsTest {
     public void groupTest() {
         List<Employee> employees = Common.getEmployeeList();
         Map<Character, List<Employee>> map = employees.stream().collect(Collectors.groupingBy(e -> e.getName().charAt(0)));
-        System.out.println(map);
+
+        log.info("{}", map);
     }
 }
