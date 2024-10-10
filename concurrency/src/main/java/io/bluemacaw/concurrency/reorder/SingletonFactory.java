@@ -1,4 +1,4 @@
-package io.bluemacaw.concurrency.record;
+package io.bluemacaw.concurrency.reorder;
 
 import lombok.extern.slf4j.Slf4j;
 
