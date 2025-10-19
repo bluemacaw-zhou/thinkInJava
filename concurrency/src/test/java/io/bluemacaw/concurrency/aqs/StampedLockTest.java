@@ -1,6 +1,6 @@
 package io.bluemacaw.concurrency.aqs;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class StampedLockTest {
     @Test

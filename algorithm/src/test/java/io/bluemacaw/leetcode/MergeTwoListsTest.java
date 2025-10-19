@@ -1,6 +1,6 @@
 package io.bluemacaw.leetcode;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 // 21 合并两个有序链表
 public class MergeTwoListsTest {

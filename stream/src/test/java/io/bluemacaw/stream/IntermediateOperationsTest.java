@@ -1,7 +1,7 @@
 package io.bluemacaw.stream;
 
 import lombok.extern.slf4j.Slf4j;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.util.Collection;

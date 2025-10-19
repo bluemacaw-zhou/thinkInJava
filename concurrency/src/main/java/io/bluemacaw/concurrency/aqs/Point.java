@@ -1,7 +1,6 @@
 package io.bluemacaw.concurrency.aqs;
 
 import lombok.extern.slf4j.Slf4j;
-import sun.security.ssl.SSLLogger;
 
 import java.util.concurrent.locks.StampedLock;
 

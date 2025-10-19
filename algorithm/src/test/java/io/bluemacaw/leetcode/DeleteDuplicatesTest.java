@@ -1,6 +1,6 @@
 package io.bluemacaw.leetcode;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 // 83 删除排序链表中的重复元素
 public class DeleteDuplicatesTest {

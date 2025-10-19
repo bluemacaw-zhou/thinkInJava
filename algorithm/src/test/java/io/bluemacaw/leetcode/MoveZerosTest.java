@@ -1,6 +1,6 @@
 package io.bluemacaw.leetcode;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 // 283 移动零
 public class MoveZerosTest {

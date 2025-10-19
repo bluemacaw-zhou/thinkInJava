@@ -1,7 +1,7 @@
 package io.bluemacaw.leetcode;
 
 import lombok.extern.slf4j.Slf4j;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 // 88 合并两个有序数组
 @Slf4j

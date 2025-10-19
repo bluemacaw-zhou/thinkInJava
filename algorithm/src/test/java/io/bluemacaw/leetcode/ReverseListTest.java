@@ -1,7 +1,7 @@
 package io.bluemacaw.leetcode;
 
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 // 206 反转链表
 public class ReverseListTest {

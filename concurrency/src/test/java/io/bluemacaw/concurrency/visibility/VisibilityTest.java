@@ -8,7 +8,7 @@ package io.bluemacaw.concurrency.visibility;
 
 import io.bluemacaw.concurrency.common.UnsafeFactory;
 import lombok.extern.slf4j.Slf4j;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 // 内存屏障的理解
 // 缓存强制刷新
