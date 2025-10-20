@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:*)",
+      "Bash(dir:*)",
+      "Bash(\"D:\\Program Files\\apache-maven-3.8.1\\bin\\mvn.cmd\" clean install -f \"E:\\workspace\\home\\ThinkInJava\\dependencies\\pom.xml\")",
+      "Bash(\"D:\\Program Files\\apache-maven-3.8.1\\bin\\mvn.cmd\" clean install -f \"E:\\workspace\\home\\ThinkInJava\\spring.dependencies\\pom.xml\")",
+      "Bash(\"D:\\Program Files\\apache-maven-3.8.1\\bin\\mvn.cmd\" clean compile test-compile -f \"E:\\workspace\\home\\ThinkInJava\\algorithm\\pom.xml\")",
+      "Bash(powershell:*)",
+      "Bash(\"D:\\Program Files\\apache-maven-3.8.1\\bin\\mvn.cmd\" clean:*)",
+      "Bash(\"D:\\Program Files\\apache-maven-3.8.1\\bin\\mvn.cmd\" install -f \"e:\\workspace\\home\\ThinkInJava\\pom.xml\")",
+      "Bash(\"D:\\Program Files\\apache-maven-3.8.1\\bin\\mvn.cmd\" clean install -f \"e:\\workspace\\home\\ThinkInJava\\pom.xml\")",
+      "Bash(\"D:\\Program Files\\apache-maven-3.8.1\\bin\\mvn.cmd\" clean install -e -f \"e:\\workspace\\home\\ThinkInJava\\pom.xml\")",
+      "Bash(\"D:\\Program Files\\apache-maven-3.8.1\\bin\\mvn.cmd\" install:install -f \"e:\\workspace\\home\\ThinkInJava\\pom.xml\")",
+      "Bash(\"D:\\Program Files\\apache-maven-3.8.1\\bin\\mvn.cmd\" clean compile -f \"e:\\workspace\\home\\ThinkInJava\\mongodb\\pom.xml\")",
+      "Bash(\"D:\\Program Files\\apache-maven-3.8.1\\bin\\mvn.cmd\" clean install -f \"e:\\workspace\\home\\ThinkInJava\\spring.dependencies\\pom.xml\")",
+      "Bash(\"D:\\Program Files\\apache-maven-3.8.1\\bin\\mvn.cmd\":*)",
+      "Bash(\"D:\\Program Files\\apache-maven-3.8.1\\bin\\mvn.cmd\" -X clean compile -f \"e:\\workspace\\home\\ThinkInJava\\mongodb\\pom.xml\")",
+      "Bash(findstr:*)",
+      "Bash(\"D:\\Program Files\\apache-maven-3.8.1\\bin\\mvn.cmd\" help:effective-pom -f \"e:\\workspace\\home\\ThinkInJava\\mongodb\\pom.xml\")",
+      "Read(//c/Users/bluem/.m2/repository/io/bluemacaw/spring.dependencies/1.0.0-SNAPSHOT/**)",
+      "Bash(\"D:\\Program Files\\apache-maven-3.8.1\\bin\\mvn.cmd\" clean compile -pl mongodb -am)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
