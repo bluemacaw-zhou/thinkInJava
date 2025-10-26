@@ -7,26 +7,25 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 
-@Document("books")  
+import java.time.LocalDateTime;
+
+@Document("emp")
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class Book {
+public class Employee {
     @Id
-    private String id;
+    private Integer id;
+
+    @Field("username")
+    private String name;
 
     @Field
-    private String title;
+    private int age;
 
     @Field
-    private String type;
+    private Double salary;
 
     @Field
-    private String tag;
-
-    @Field
-    private Long favCount;
-
-    @Field
-    private String author;
+    private LocalDateTime entryDay;
 }
