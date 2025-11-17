@@ -1,0 +1,6 @@
+org.springframework.boot.autoconfiguration.EnableAutoConfiguration=\
+cn.com.wind.IMStarter.config.WindMysqlAutoConfiguration,\
+cn.com.wind.IMStarter.config.WindOracleAutoConfiguration,\
+cn.com.wind.IMStarter.config.WindRedisAutoConfiguration, \
+cn.com.wind.IMStarter.config.EagleAutoConfiguration, \
+cn.com.wind.IMStarter.config.ExpoAutoConfiguration,
