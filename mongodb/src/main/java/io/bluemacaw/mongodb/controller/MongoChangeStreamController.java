@@ -1,4 +1,4 @@
-package cn.com.wind.controller;
+package io.bluemacaw.mongodb.controller;
 
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;

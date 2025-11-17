@@ -1,8 +1,8 @@
-package cn.com.wind.controller;
+package io.bluemacaw.mongodb.controller;
 
-import cn.com.wind.entity.MsgAnalysisData;
-import cn.com.wind.service.ClickHousePoolMonitorService;
-import cn.com.wind.service.ClickHouseQueryService;
+import io.bluemacaw.mongodb.entity.MsgAnalysisData;
+import io.bluemacaw.mongodb.service.ClickHousePoolMonitorService;
+import io.bluemacaw.mongodb.service.ClickHouseQueryService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;

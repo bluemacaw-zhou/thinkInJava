@@ -1,4 +1,4 @@
-package cn.com.wind.config;
+package io.bluemacaw.mongodb.config;
 
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableScheduling;

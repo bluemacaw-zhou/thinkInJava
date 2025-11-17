@@ -1,4 +1,4 @@
-package cn.com.wind.entity;
+package io.bluemacaw.mongodb.entity;
 
 import lombok.Data;
 

@@ -1,11 +1,8 @@
-package cn.com.wind.controller.rabbitmq;
+package io.bluemacaw.mongodb.controller.rabbitmq;
 
-import cn.com.wind.entity.MqMsgItem;
-import cn.com.wind.entity.MsgAnalysisData;
-import cn.com.wind.service.ClickHouseMessageProducer;
-import cn.com.wind.service.MsgAnalysisDataConverter;
 import com.alibaba.fastjson.JSON;
 import com.rabbitmq.client.Channel;
+import io.bluemacaw.mongodb.entity.MqMsgItem;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.Message;

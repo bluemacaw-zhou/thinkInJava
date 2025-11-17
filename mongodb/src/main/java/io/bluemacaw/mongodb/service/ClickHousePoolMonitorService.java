@@ -1,4 +1,4 @@
-package cn.com.wind.service;
+package io.bluemacaw.mongodb.service;
 
 import com.zaxxer.hikari.HikariDataSource;
 import com.zaxxer.hikari.HikariPoolMXBean;

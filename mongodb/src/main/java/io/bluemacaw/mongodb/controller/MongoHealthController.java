@@ -1,6 +1,6 @@
-package cn.com.wind.controller;
+package io.bluemacaw.mongodb.controller;
 
-import cn.com.wind.service.MongoConnectionService;
+import io.bluemacaw.mongodb.service.MongoConnectionService;
 import jakarta.annotation.Resource;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;

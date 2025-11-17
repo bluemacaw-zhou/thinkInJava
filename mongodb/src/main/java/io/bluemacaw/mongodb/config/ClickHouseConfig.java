@@ -1,4 +1,4 @@
-package cn.com.wind.config;
+package io.bluemacaw.mongodb.config;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;

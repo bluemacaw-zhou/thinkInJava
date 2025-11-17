@@ -1,9 +1,9 @@
-package cn.com.wind.controller;
+package io.bluemacaw.mongodb.controller;
 
-import cn.com.wind.config.RabbitmqConfig;
-import cn.com.wind.entity.MqMsgItem;
-import cn.com.wind.entity.MsgData;
 import com.alibaba.fastjson.JSON;
+import io.bluemacaw.mongodb.config.RabbitmqConfig;
+import io.bluemacaw.mongodb.entity.MqMsgItem;
+import io.bluemacaw.mongodb.entity.MsgData;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.Message;

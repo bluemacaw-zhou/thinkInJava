@@ -1,11 +1,11 @@
-package cn.com.wind.scheduler;
+package io.bluemacaw.mongodb.scheduler;
 
-import cn.com.wind.service.MongoChangeStreamService;
 import com.mongodb.client.ChangeStreamIterable;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
 import com.mongodb.client.model.changestream.FullDocument;
+import io.bluemacaw.mongodb.service.MongoChangeStreamService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.BsonDocument;

@@ -1,7 +1,6 @@
-package cn.com.wind.service;
+package io.bluemacaw.mongodb.service;
 
-import cn.com.wind.config.MongoConnectionPoolListener;
-import com.mongodb.client.MongoClient;
+import io.bluemacaw.mongodb.config.MongoConnectionPoolListener;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;

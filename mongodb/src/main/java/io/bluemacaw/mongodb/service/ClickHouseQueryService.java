@@ -1,6 +1,6 @@
-package cn.com.wind.service;
+package io.bluemacaw.mongodb.service;
 
-import cn.com.wind.entity.MsgAnalysisData;
+import io.bluemacaw.mongodb.entity.MsgAnalysisData;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;

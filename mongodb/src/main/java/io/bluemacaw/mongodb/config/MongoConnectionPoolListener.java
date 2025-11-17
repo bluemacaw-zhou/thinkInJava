@@ -1,4 +1,4 @@
-package cn.com.wind.config;
+package io.bluemacaw.mongodb.config;
 
 import com.mongodb.event.*;
 import lombok.extern.slf4j.Slf4j;
