@@ -1,4 +1,79 @@
+#spring:
+#  data:
+#    mongodb:
+#      uri: mongodb://appdb:michael@192.168.254.129:27017/appdb?authSource=appdb
+#      # 连接池配置
+#      connection-pool:
+#        max-size: 50              # 最大连接数（默认100）
+#        min-size: 5               # 最小连接数（默认0）
+#        max-wait-time: 10000      # 获取连接最大等待时间（毫秒，默认120000）
+#        max-connection-life-time: 0  # 连接最大存活时间（毫秒，0表示无限制）
+#        max-connection-idle-time: 0  # 连接最大空闲时间（毫秒，0表示无限制）
+
+      # 其他配置
+#      connection-timeout: 10000    # 连接超时（毫秒）
+#      socket-timeout: 0
+
 spring:
-  data:
-    mongodb:
-      uri: mongodb://admin:admin@localhost:27017/test?authSource=admin
+  rabbitmq:
+    host: 192.168.254.129
+    port: 5672
+    username: admin
+    password: admin
+    exchangeMessage: 'ex.message'
+    queueMessage: 'queue.message'
+    routeMessage: 'route.message'
+
+    # ClickHouse专用队列配置
+    exchangeClickhouse: 'ex.clickhouse.analysis'
+    queueClickhouse: 'queue.clickhouse.analysis'
+    routeClickhouse: 'route.clickhouse.analysis'
+
+    listener:
+      type: direct
+      direct:
+        prefetch: 500                      # 预取数量（批量模式下建议500-1000）
+        concurrency: 32                    # 消费线程池核心线程数（批量模式建议提高）
+        max-concurrency: 64                # 消费线程池最大线程数
+        acknowledge-mode: manual           # 手动确认消息
+
+# RabbitMQ 消费者配置
+rabbitmq:
+  consumer:
+    batch-enabled: true                    # 启用批量消费模式（true=批量，false=单条）
+    batch-size: 100                        # 批量大小（达到此数量触发批处理）
+    batch-timeout: 5000                    # 批量超时（毫秒，超过此时间触发批处理）
+    concurrency: 32                        # 消费者并发数
+
+
+mongodb:
+  host: 192.168.254.129
+  port: 27017
+  database: message
+
+  # Change Stream配置
+  change-stream:
+    enabled: true                    # 是否启用Change Stream
+    collection: message              # 监听的集合名称
+    batch-size: 100                  # 批量处理大小
+    resume-token-collection: change_stream_resume_tokens  # 存储resume token的集合
+    schedule-cron: "0/10 * * * * ?"  # 定时任务cron表达式(每10秒执行一次)
+    process-duration: 8000           # 每次处理持续时间(毫秒)
+
+clickhouse:
+  url: jdbc:clickhouse://192.168.254.129:8123/message
+  username: admin
+  password: admin
+  database: message
+  table: msg_analysis_data
+
+  # HikariCP连接池配置
+  hikari:
+    pool-name: ClickHousePool
+    maximum-pool-size: 20          # 最大连接数
+    minimum-idle: 5                # 最小空闲连接数
+    connection-timeout: 30000      # 连接超时(毫秒)
+    idle-timeout: 600000           # 空闲连接超时(10分钟)
+    max-lifetime: 1800000          # 连接最大生存时间(30分钟)
+    auto-commit: true
+    connection-test-query: SELECT 1
