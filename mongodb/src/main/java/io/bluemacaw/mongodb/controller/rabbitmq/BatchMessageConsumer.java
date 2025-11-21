@@ -26,143 +26,54 @@ import java.util.List;
  */
 @Slf4j
 @Component
-@ConditionalOnProperty(prefix = "rabbitmq.consumer", name = "batch-enabled", havingValue = "true")
 public class BatchMessageConsumer {
 
     @Resource
-    private MongoTemplate mongoTemplate;
+    private BatchMessageScheduler batchMessageScheduler;
 
-    @Resource
-    private ClickHouseMessageProducer clickHouseProducer;
-
-    @Value("${rabbitmq.consumer.batch-size:100}")
-    private int batchSize;
-
-    @Value("${rabbitmq.consumer.batch-timeout:5000}")
-    private long batchTimeout;
-
-    private final List<MessageBatch> messageBatch = new ArrayList<>();
-    private long lastBatchTime = System.currentTimeMillis();
+    @Value("${rabbitmq.consumer.max-batch-size:1000}")
+    private int maxBatchSize;
 
     /**
-     * 批量消费消息
-     * 注意：这里仍然是单条接收，但会在内存中累积后批量处理
+     * 接收消息并添加到批次缓存
+     * 支持背压机制：当缓存超过阈值时，暂停消费并休眠
      */
-    @RabbitListener(queues = "${spring.rabbitmq.queueMessage}",
+    @RabbitListener(queues = "${spring.rabbitmq.queueMessageBatch}",
                     ackMode = "MANUAL",
                     concurrency = "${rabbitmq.consumer.concurrency:16}")
     public void onMessage(Message message, Channel channel) throws Exception {
         try {
+            // 检查当前批次大小，如果超过阈值则等待
+            int currentBatchSize = batchMessageScheduler.getBatchSize();
+            if (currentBatchSize >= maxBatchSize) {
+                log.warn("Batch size {} exceeds max threshold {}, pausing consumption for 1s",
+                         currentBatchSize, maxBatchSize);
+                Thread.sleep(1000);
+
+                // 拒绝消息并重新入队，让其他消费者或稍后处理
+                channel.basicNack(message.getMessageProperties().getDeliveryTag(), false, true);
+                return;
+            }
+
             long deliveryTag = message.getMessageProperties().getDeliveryTag();
 
             // 解析消息
             String content = new String(message.getBody());
             MqMsgItem msg = JSON.parseObject(content, MqMsgItem.class);
 
-            // 添加到批次
-            synchronized (messageBatch) {
-                messageBatch.add(new MessageBatch(msg, deliveryTag));
+            // 添加到批次缓存
+            batchMessageScheduler.addMessage(msg.getMsgData(), deliveryTag, channel);
 
-                // 检查是否需要批量处理
-                boolean shouldProcess = messageBatch.size() >= batchSize ||
-                                       (System.currentTimeMillis() - lastBatchTime) >= batchTimeout;
+            // 短暂休眠，降低消费速度
+            Thread.sleep(10);
 
-                if (shouldProcess) {
-                    processBatch(channel);
-                }
-            }
-
+        } catch (InterruptedException e) {
+            log.warn("Consumer interrupted", e);
+            Thread.currentThread().interrupt();
         } catch (Exception e) {
             log.error("Error processing message", e);
             // 拒绝消息并重新入队
             channel.basicNack(message.getMessageProperties().getDeliveryTag(), false, true);
-        }
-    }
-
-    /**
-     * 批量处理消息
-     */
-    private void processBatch(Channel channel) throws Exception {
-        if (messageBatch.isEmpty()) {
-            return;
-        }
-
-        List<MessageBatch> currentBatch = new ArrayList<>(messageBatch);
-        messageBatch.clear();
-        lastBatchTime = System.currentTimeMillis();
-
-        try {
-            long startTime = System.currentTimeMillis();
-
-            // 1. 批量插入 MongoDB
-            List<MsgData> msgDataList = new ArrayList<>();
-            for (MessageBatch batch : currentBatch) {
-                msgDataList.add(batch.msg.getMsgData());
-            }
-
-            bulkInsertToMongoDB(msgDataList);
-
-            // 2. 批量转换并发送到 ClickHouse
-            List<MsgAnalysisData> analysisDataList = new ArrayList<>();
-            for (MsgData msgData : msgDataList) {
-                MsgAnalysisData analysisData = MsgAnalysisDataConverter.convert(msgData);
-                if (analysisData != null) {
-                    analysisDataList.add(analysisData);
-                }
-            }
-
-            if (!analysisDataList.isEmpty()) {
-                clickHouseProducer.sendMessageBatch(analysisDataList);
-            }
-
-            // 3. 批量确认消息
-            long lastDeliveryTag = currentBatch.get(currentBatch.size() - 1).deliveryTag;
-            channel.basicAck(lastDeliveryTag, true); // multiple=true 批量确认
-
-            long duration = System.currentTimeMillis() - startTime;
-            log.info("Batch processed: {} messages in {} ms", currentBatch.size(), duration);
-
-        } catch (Exception e) {
-            log.error("Batch processing error", e);
-            // 批量拒绝并重新入队
-            long lastDeliveryTag = currentBatch.get(currentBatch.size() - 1).deliveryTag;
-            channel.basicNack(lastDeliveryTag, true, true);
-            throw e;
-        }
-    }
-
-    /**
-     * 批量插入到 MongoDB
-     */
-    private void bulkInsertToMongoDB(List<MsgData> msgDataList) {
-        if (msgDataList.isEmpty()) {
-            return;
-        }
-
-        try {
-            // 使用 MongoDB BulkOperations 进行批量插入
-            BulkOperations bulkOps = mongoTemplate.bulkOps(BulkOperations.BulkMode.UNORDERED, MsgData.class);
-            bulkOps.insert(msgDataList);
-            bulkOps.execute();
-
-            log.debug("Bulk inserted {} messages to MongoDB", msgDataList.size());
-
-        } catch (Exception e) {
-            log.error("MongoDB bulk insert error", e);
-            throw e;
-        }
-    }
-
-    /**
-     * 内部类：消息批次
-     */
-    private static class MessageBatch {
-        MqMsgItem msg;
-        long deliveryTag;
-
-        MessageBatch(MqMsgItem msg, long deliveryTag) {
-            this.msg = msg;
-            this.deliveryTag = deliveryTag;
         }
     }
 }
