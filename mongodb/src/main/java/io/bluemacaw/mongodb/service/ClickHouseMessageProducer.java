@@ -13,7 +13,7 @@ import org.springframework.stereotype.Service;
 
 /**
  * ClickHouse消息生产者
- * 负责将MsgAnalysisData发送到RabbitMQ队列，供ClickHouse消费
+ * 支持单条和批量发送到RabbitMQ队列，供ClickHouse消费
  */
 @Slf4j
 @Service
@@ -25,133 +25,65 @@ public class ClickHouseMessageProducer {
     @Value("${spring.rabbitmq.exchangeClickhouse}")
     private String exchangeClickhouse;
 
-    @Value("${spring.rabbitmq.routeClickhouse}")
-    private String routeClickhouse;
+    // 批量消息路由
+    @Value("${spring.rabbitmq.routeClickhouseBatch}")
+    private String routeClickhouseBatch;
 
     /**
-     * 发送单条消息到ClickHouse队列
-     *
-     * @param analysisData 消息分析数据
-     * @return 是否发送成功
-     */
-    public boolean sendMessage(MsgAnalysisData analysisData) {
-        if (analysisData == null) {
-            log.warn("MsgAnalysisData is null, skip sending");
-            return false;
-        }
-
-        try {
-            // 转换为JSON字符串
-            String jsonMessage = JSON.toJSONString(analysisData);
-
-            // 设置消息属性
-            MessageProperties messageProperties = new MessageProperties();
-            messageProperties.setContentType("application/json");
-            messageProperties.setContentEncoding("UTF-8");
-            // 设置消息持久化，确保RabbitMQ重启后消息不丢失
-            messageProperties.setDeliveryMode(org.springframework.amqp.core.MessageDeliveryMode.PERSISTENT);
-
-            // 创建消息
-            Message message = new Message(jsonMessage.getBytes("UTF-8"), messageProperties);
-
-            // 发送消息
-            rabbitTemplate.send(exchangeClickhouse, routeClickhouse, message);
-
-            log.info("Successfully sent message to ClickHouse queue, msgId: {}, fromId: {}, contactId: {}",
-                    analysisData.getMsgId(), analysisData.getFromId(), analysisData.getContactId());
-
-            return true;
-
-        } catch (Exception e) {
-            log.error("Failed to send message to ClickHouse queue, msgId: {}",
-                    analysisData.getMsgId(), e);
-            return false;
-        }
-    }
-
-    /**
-     * 批量发送消息到ClickHouse队列（高性能版本）
-     * 使用 RabbitMQ 的批量发送机制，性能更高
+     * 批量发送消息到ClickHouse队列（合并为一条消息）
+     * 使用 JSONEachRow 格式，ClickHouse 会自动解析每一行
      *
      * @param analysisDataList 消息分析数据列表
-     * @return 成功发送的消息数量
+     * @return 是否发送成功
      */
-    public int sendMessageBatch(java.util.List<MsgAnalysisData> analysisDataList) {
+    public boolean sendMessageBatch(List<MsgAnalysisData> analysisDataList) {
         if (analysisDataList == null || analysisDataList.isEmpty()) {
             log.warn("Batch list is empty, skip sending");
-            return 0;
+            return false;
         }
 
         try {
             long startTime = System.currentTimeMillis();
 
-            // 批量发送（通过 RabbitMQ 的批量 API）
-            for (MsgAnalysisData analysisData : analysisDataList) {
-                if (analysisData != null) {
-                    String jsonMessage = JSON.toJSONString(analysisData);
-
-                    MessageProperties messageProperties = new MessageProperties();
-                    messageProperties.setContentType("application/json");
-                    messageProperties.setContentEncoding("UTF-8");
-                    messageProperties.setDeliveryMode(org.springframework.amqp.core.MessageDeliveryMode.PERSISTENT);
-
-                    Message message = new Message(jsonMessage.getBytes("UTF-8"), messageProperties);
-                    rabbitTemplate.send(exchangeClickhouse, routeClickhouse, message);
+            // 为所有数据自动生成 sessionId（如果未设置）
+            analysisDataList.forEach(data -> {
+                if (data != null && (data.getSessionId() == null || data.getSessionId().isEmpty())) {
+                    data.generateSessionId();
                 }
-            }
+            });
 
-            long duration = System.currentTimeMillis() - startTime;
-            log.debug("Batch sent {} messages to ClickHouse queue in {} ms",
-                    analysisDataList.size(), duration);
+            // 将列表转换为 JSONEachRow 格式（每行一个JSON对象，用换行符分隔）
+            // ClickHouse RabbitMQ 引擎支持这种格式
+            String jsonEachRow = analysisDataList.stream()
+                    .filter(data -> data != null)
+                    .map(JSON::toJSONString)
+                    .collect(Collectors.joining("\n"));
 
-            return analysisDataList.size();
-
-        } catch (Exception e) {
-            log.error("Batch send to ClickHouse error", e);
-            return 0;
-        }
-    }
-
-    /**
-     * 批量发送消息到ClickHouse队列（兼容旧方法）
-     *
-     * @param analysisDataList 消息分析数据列表
-     * @return 成功发送的消息数量
-     */
-    public int sendBatchMessages(java.util.List<MsgAnalysisData> analysisDataList) {
-        return sendMessageBatch(analysisDataList);
-    }
-
-    /**
-     * 异步发送消息到ClickHouse队列
-     * 适用于不需要等待发送结果的场景
-     *
-     * @param analysisData 消息分析数据
-     */
-    public void sendMessageAsync(MsgAnalysisData analysisData) {
-        if (analysisData == null) {
-            log.warn("MsgAnalysisData is null, skip sending");
-            return;
-        }
-
-        try {
-            String jsonMessage = JSON.toJSONString(analysisData);
-
+            // 设置消息属性
             MessageProperties messageProperties = new MessageProperties();
             messageProperties.setContentType("application/json");
             messageProperties.setContentEncoding("UTF-8");
             messageProperties.setDeliveryMode(org.springframework.amqp.core.MessageDeliveryMode.PERSISTENT);
 
-            Message message = new Message(jsonMessage.getBytes("UTF-8"), messageProperties);
+            // 添加自定义头部，标记批量大小
+            messageProperties.setHeader("batch-size", analysisDataList.size());
+            messageProperties.setHeader("message-type", "batch");
 
-            // 使用convertAndSend进行异步发送
-            rabbitTemplate.convertAndSend(exchangeClickhouse, routeClickhouse, message);
+            // 创建消息
+            Message message = new Message(jsonEachRow.getBytes("UTF-8"), messageProperties);
 
-            log.debug("Async sent message to ClickHouse queue, msgId: {}", analysisData.getMsgId());
+            // 发送到批量消息队列
+            rabbitTemplate.send(exchangeClickhouse, routeClickhouseBatch, message);
+
+            long duration = System.currentTimeMillis() - startTime;
+            log.info("Successfully sent batch message with {} items to ClickHouse queue in {} ms",
+                    analysisDataList.size(), duration);
+
+            return true;
 
         } catch (Exception e) {
-            log.error("Failed to async send message to ClickHouse queue, msgId: {}",
-                    analysisData.getMsgId(), e);
+            log.error("Failed to send batch message to ClickHouse queue", e);
+            return false;
         }
     }
 }
