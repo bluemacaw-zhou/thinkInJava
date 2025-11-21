@@ -19,7 +19,6 @@ import java.nio.charset.StandardCharsets;
  */
 @Slf4j
 @Component
-@ConditionalOnProperty(prefix = "rabbitmq.consumer", name = "batch-enabled", havingValue = "false", matchIfMissing = true)
 public class MessageConsumer {
     @Resource
     private MongoTemplate mongoTemplate;
