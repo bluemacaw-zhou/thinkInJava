@@ -20,8 +20,18 @@ public class MongoChangeStreamService {
     @Resource
     private ClickHouseMessageProducer clickHouseProducer;
 
+    // 批量缓存配置
+    @Value("${mongodb.change-stream.batch-size:100}")
+    private int batchSize;
+
+    // 批量缓存（用于收集insert事件）
+    private final List<MsgAnalysisData> insertBatchCache = new ArrayList<>();
+
+    // 线程安全锁
+    private final ReentrantLock batchLock = new ReentrantLock();
+
     /**
-     * 处理MongoDB Insert事件
+     * 处理MongoDB Insert事件（批量缓存模式）
      *
      * @param document 插入的文档
      */
@@ -40,15 +50,22 @@ public class MongoChangeStreamService {
             // 转换为MsgAnalysisData
             MsgAnalysisData analysisData = MsgAnalysisDataConverter.convert(msgData);
 
-            if (analysisData != null) {
-                // 发送到ClickHouse队列
-                boolean success = clickHouseProducer.sendMessage(analysisData);
-
-                if (!success) {
-                    log.error("Failed to send to ClickHouse queue, msgId: {}", msgData.getMsgId());
-                }
-            } else {
+            if (analysisData == null) {
                 log.warn("Analysis data conversion failed, msgId: {}", msgData.getMsgId());
+                return;
+            }
+
+            // 添加到批量缓存
+            batchLock.lock();
+            try {
+                insertBatchCache.add(analysisData);
+
+                // 达到批量大小时，触发批量发送
+                if (insertBatchCache.size() >= batchSize) {
+                    flushBatchCacheInternal();
+                }
+            } finally {
+                batchLock.unlock();
             }
 
         } catch (Exception e) {
@@ -114,7 +131,7 @@ public class MongoChangeStreamService {
         try {
             MsgData msgData = new MsgData();
 
-            msgData.setMsgId(doc.getString("msgId"));
+//            msgData.setMsgId(doc.getString("msgId"));
             msgData.setFromId(doc.getLong("fromId"));
             msgData.setContactId(doc.getLong("contactId"));
             msgData.setContactType(doc.getInteger("contactType"));
@@ -194,5 +211,59 @@ public class MongoChangeStreamService {
         }
 
         return null;
+    }
+
+    /**
+     * 刷新批量缓存（公共方法，由Scheduler调用）
+     */
+    public void flushBatchCache() {
+        batchLock.lock();
+        try {
+            flushBatchCacheInternal();
+        } finally {
+            batchLock.unlock();
+        }
+    }
+
+    /**
+     * 内部刷新方法（需要在锁内调用）
+     */
+    private void flushBatchCacheInternal() {
+        if (insertBatchCache.isEmpty()) {
+            return;
+        }
+
+        try {
+            log.info("Flushing batch cache: {} items", insertBatchCache.size());
+
+            // 创建副本用于发送
+            List<MsgAnalysisData> batchToSend = new ArrayList<>(insertBatchCache);
+
+            // 清空缓存
+            insertBatchCache.clear();
+
+            // 批量发送到ClickHouse
+            boolean success = clickHouseProducer.sendMessageBatch(batchToSend);
+
+            if (!success) {
+                log.error("Failed to send batch to ClickHouse, batch size: {}", batchToSend.size());
+                // 注意：这里可以考虑重试策略或将失败的数据保存到其他地方
+            }
+
+        } catch (Exception e) {
+            log.error("Batch cache flush error", e);
+        }
+    }
+
+    /**
+     * 获取当前批量缓存大小（用于监控）
+     */
+    public int getBatchCacheSize() {
+        batchLock.lock();
+        try {
+            return insertBatchCache.size();
+        } finally {
+            batchLock.unlock();
+        }
     }
 }
