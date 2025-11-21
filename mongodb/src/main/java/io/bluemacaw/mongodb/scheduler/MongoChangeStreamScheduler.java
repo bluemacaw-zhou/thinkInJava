@@ -145,6 +145,9 @@ public class MongoChangeStreamScheduler {
                 }
             }
 
+            // 刷新Service层的批量缓存
+            changeStreamService.flushBatchCache();
+            
             // 始终保存resume token（确保下次从当前位置继续）
             if (lastResumeToken != null) {
                 changeStreamService.saveResumeToken(
