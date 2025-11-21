@@ -21,13 +21,21 @@ spring:
     username: admin
     password: admin
     exchangeMessage: 'ex.message'
-    queueMessage: 'queue.message'
-    routeMessage: 'route.message'
+    
+    # 单条消息队列（实时数据）
+    queueMessage: 'queue.message.single'
+    routeMessage: 'route.message.single'
+
+    # 批量消息队列（历史数据导入）
+    queueMessageBatch: 'queue.message.batch'
+    routeMessageBatch: 'route.message.batch'
 
     # ClickHouse专用队列配置
     exchangeClickhouse: 'ex.clickhouse.analysis'
-    queueClickhouse: 'queue.clickhouse.analysis'
-    routeClickhouse: 'route.clickhouse.analysis'
+
+    # 批量消息队列配置
+    queueClickhouseBatch: 'queue.clickhouse.batch'
+    routeClickhouseBatch: 'route.clickhouse.batch'
 
     listener:
       type: direct
@@ -45,6 +53,13 @@ rabbitmq:
     batch-timeout: 5000                    # 批量超时（毫秒，超过此时间触发批处理）
     concurrency: 32                        # 消费者并发数
 
+# RabbitMQ 消费者配置
+rabbitmq:
+  consumer:
+    batch-enabled: true                    # 启用批量消费模式（true=批量，false=单条）
+    batch-size: 10000                        # 批量大小（达到此数量触发批处理）
+    batch-timeout: 5000                    # 批量超时（毫秒，超过此时间触发批处理）
+    concurrency: 1                        # 消费者并发数
 
 mongodb:
   host: 192.168.254.129
