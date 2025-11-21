@@ -19,21 +19,30 @@ public class RabbitmqConfig {
     @Value("${spring.rabbitmq.exchangeMessage}")
     private String exchangeMessage;
 
+    // 单条消息队列（实时数据）
     @Value("${spring.rabbitmq.queueMessage}")
     private String queueMessage;
 
     @Value("${spring.rabbitmq.routeMessage}")
     private String routeMessage;
 
+    // 批量消息队列（历史数据导入）
+    @Value("${spring.rabbitmq.queueMessageBatch}")
+    private String queueMessageBatch;
+
+    @Value("${spring.rabbitmq.routeMessageBatch}")
+    private String routeMessageBatch;
+
     // ClickHouse专用队列配置
     @Value("${spring.rabbitmq.exchangeClickhouse}")
     private String exchangeClickhouse;
 
-    @Value("${spring.rabbitmq.queueClickhouse}")
-    private String queueClickhouse;
+    // 批量消息队列
+    @Value("${spring.rabbitmq.queueClickhouseBatch}")
+    private String queueClickhouseBatch;
 
-    @Value("${spring.rabbitmq.routeClickhouse}")
-    private String routeClickhouse;
+    @Value("${spring.rabbitmq.routeClickhouseBatch}")
+    private String routeClickhouseBatch;
 
     // 原有消息队列配置
     @Bean
@@ -41,28 +50,42 @@ public class RabbitmqConfig {
         return new DirectExchange(exchangeMessage);
     }
 
+    // 单条消息队列（实时数据）
     @Bean
     public Queue queueMessage() {
-        return new Queue(queueMessage);
+        return new Queue(queueMessage, true);
     }
 
     @Bean
-    public Binding bindingQueueChatMsgSaveV2() {
+    public Binding bindingQueueMessage() {
         return BindingBuilder.bind(queueMessage()).to(exchangeMessage()).with(routeMessage);
     }
 
+    // 批量消息队列（历史数据导入）
+    @Bean
+    public Queue queueMessageBatch() {
+        return new Queue(queueMessageBatch, true);
+    }
+
+    @Bean
+    public Binding bindingQueueMessageBatch() {
+        return BindingBuilder.bind(queueMessageBatch()).to(exchangeMessage()).with(routeMessageBatch);
+    }
+
+    // ClickHouse Exchange
     @Bean
     public DirectExchange exchangeClickhouse() {
         return new DirectExchange(exchangeClickhouse);
     }
 
+    // 批量消息队列
     @Bean
-    public Queue queueClickhouse() {
-        return new Queue(queueClickhouse, true);
+    public Queue queueClickhouseBatch() {
+        return new Queue(queueClickhouseBatch, true);
     }
 
     @Bean
-    public Binding bindingQueueClickhouse() {
-        return BindingBuilder.bind(queueClickhouse()).to(exchangeClickhouse()).with(routeClickhouse);
+    public Binding bindingQueueClickhouseBatch() {
+        return BindingBuilder.bind(queueClickhouseBatch()).to(exchangeClickhouse()).with(routeClickhouseBatch);
     }
 }
