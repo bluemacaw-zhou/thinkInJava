@@ -5,6 +5,7 @@ import com.rabbitmq.client.Channel;
 import io.bluemacaw.mongodb.entity.MqMsgItem;
 import io.bluemacaw.mongodb.entity.MsgAnalysisData;
 import io.bluemacaw.mongodb.entity.MsgData;
+import io.bluemacaw.mongodb.scheduler.BatchMessageScheduler;
 import io.bluemacaw.mongodb.service.ClickHouseMessageProducer;
 import io.bluemacaw.mongodb.service.MsgAnalysisDataConverter;
 import jakarta.annotation.Resource;

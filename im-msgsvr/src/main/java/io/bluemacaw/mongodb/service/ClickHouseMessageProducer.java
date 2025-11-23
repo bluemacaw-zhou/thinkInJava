@@ -11,6 +11,9 @@ import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
 /**
  * ClickHouse消息生产者
  * 支持单条和批量发送到RabbitMQ队列，供ClickHouse消费

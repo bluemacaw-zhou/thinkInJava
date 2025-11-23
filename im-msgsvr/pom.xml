@@ -11,7 +11,7 @@
         <relativePath>../spring.dependencies/pom.xml</relativePath>
     </parent>
 
-    <artifactId>mongodb</artifactId>
+    <artifactId>im-msgsvr</artifactId>
 
    <dependencies>
        <dependency>

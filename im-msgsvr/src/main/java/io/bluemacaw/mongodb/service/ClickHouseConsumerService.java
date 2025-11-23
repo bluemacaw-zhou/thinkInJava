@@ -1,3 +1,22 @@
+package io.bluemacaw.mongodb.service;
+
+import com.alibaba.fastjson.JSON;
+import io.bluemacaw.mongodb.entity.MsgAnalysisData;
+import jakarta.annotation.Resource;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.core.Message;
+import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.stereotype.Service;
+
+import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.Timestamp;
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
+
 /**
  * ClickHouse 消费者服务
  * 从 RabbitMQ 消费消息并写入 ClickHouse

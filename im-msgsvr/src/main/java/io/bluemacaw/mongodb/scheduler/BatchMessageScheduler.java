@@ -1,3 +1,18 @@
+package io.bluemacaw.mongodb.scheduler;
+
+import com.rabbitmq.client.Channel;
+import io.bluemacaw.mongodb.entity.MsgData;
+import jakarta.annotation.Resource;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.mongodb.core.BulkOperations;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Component;
+
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * 批量消息处理定时任务
  * 定时将缓存的消息批量插入MongoDB
