@@ -2,79 +2,64 @@ package io.bluemacaw.mongodb.controller.rabbitmq;
 
 import com.alibaba.fastjson.JSON;
 import com.rabbitmq.client.Channel;
-import io.bluemacaw.mongodb.entity.MqMsgItem;
-import io.bluemacaw.mongodb.entity.MsgAnalysisData;
-import io.bluemacaw.mongodb.entity.MsgData;
-import io.bluemacaw.mongodb.scheduler.BatchMessageScheduler;
-import io.bluemacaw.mongodb.service.ClickHouseMessageProducer;
-import io.bluemacaw.mongodb.service.MsgAnalysisDataConverter;
+import io.bluemacaw.mongodb.entity.mq.MqAggregatedMessageData;
+import io.bluemacaw.mongodb.service.MessageService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.data.mongodb.core.BulkOperations;
-import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.nio.charset.StandardCharsets;
 
 /**
  * 批量消息消费者
- * 支持批量从 RabbitMQ 消费、批量插入 MongoDB、批量发送到 ClickHouse
+ * 用于处理历史数据导入场景
+ *
+ * 处理流程：
+ * 1. 从MQ接收聚合消息(MqAggregatedMessageData)
+ * 2. 确保 Channel 和 UserSubscription 存在
+ * 3. 根据消息日期分配seq（历史数据递减，新数据递增）
+ * 4. 批量保存到MongoDB (按月分collection)
+ * 5. MongoDB Change Stream 监听到插入事件
+ * 6. 同步到 ClickHouse
  */
 @Slf4j
 @Component
 public class BatchMessageConsumer {
-
     @Resource
-    private BatchMessageScheduler batchMessageScheduler;
+    private MessageService messageService;
 
-    @Value("${rabbitmq.consumer.max-batch-size:1000}")
-    private int maxBatchSize;
+    @RabbitListener(
+        queues = "${spring.rabbitmq.queueMessageBatch}",
+        concurrency = "8"
+    )
+    public void onBatchMessage(Message message, Channel channel) throws Exception {
+        long deliveryTag = message.getMessageProperties().getDeliveryTag();
+        byte[] body = message.getBody();
+        String content = new String(body, StandardCharsets.UTF_8);
 
-    /**
-     * 接收消息并添加到批次缓存
-     * 支持背压机制：当缓存超过阈值时，暂停消费并休眠
-     */
-    @RabbitListener(queues = "${spring.rabbitmq.queueMessageBatch}",
-                    ackMode = "MANUAL",
-                    concurrency = "${rabbitmq.consumer.concurrency:16}")
-    public void onMessage(Message message, Channel channel) throws Exception {
         try {
-            // 检查当前批次大小，如果超过阈值则等待
-            int currentBatchSize = batchMessageScheduler.getBatchSize();
-            if (currentBatchSize >= maxBatchSize) {
-                log.warn("Batch size {} exceeds max threshold {}, pausing consumption for 1s",
-                         currentBatchSize, maxBatchSize);
-                Thread.sleep(1000);
+            MqAggregatedMessageData aggregatedData = JSON.parseObject(content, MqAggregatedMessageData.class);
 
-                // 拒绝消息并重新入队，让其他消费者或稍后处理
-                channel.basicNack(message.getMessageProperties().getDeliveryTag(), false, true);
-                return;
-            }
+            // 调用 MessageService 批量保存消息
+            messageService.saveBatchMessages(aggregatedData);
 
-            long deliveryTag = message.getMessageProperties().getDeliveryTag();
+            // 手动确认消息
+            channel.basicAck(deliveryTag, false);
 
-            // 解析消息
-            String content = new String(message.getBody());
-            MqMsgItem msg = JSON.parseObject(content, MqMsgItem.class);
+        } catch (DataIntegrityViolationException e) {
+            // MongoDB 写冲突异常
+            log.error("MongoDB WriteConflict detected, requeue batch message for retry. deliveryTag: {}", deliveryTag, e);
+            // 负确认，消息重新入队等待重试
+            channel.basicNack(deliveryTag, false, true);
 
-            // 添加到批次缓存
-            batchMessageScheduler.addMessage(msg.getMsgData(), deliveryTag, channel);
-
-            // 短暂休眠，降低消费速度
-            Thread.sleep(10);
-
-        } catch (InterruptedException e) {
-            log.warn("Consumer interrupted", e);
-            Thread.currentThread().interrupt();
         } catch (Exception e) {
-            log.error("Error processing message", e);
-            // 拒绝消息并重新入队
-            channel.basicNack(message.getMessageProperties().getDeliveryTag(), false, true);
+            // 其他未预期的异常
+            log.error("Unexpected error processing batch message, requeue for retry. deliveryTag: {}", deliveryTag, e);
+            // 负确认，消息重新入队等待重试
+            channel.basicNack(deliveryTag, false, true);
         }
     }
 }
