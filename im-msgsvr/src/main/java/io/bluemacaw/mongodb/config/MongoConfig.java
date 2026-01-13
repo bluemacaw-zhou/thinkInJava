@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.mongodb.MongoDatabaseFactory;
+import org.springframework.data.mongodb.MongoTransactionManager;
 import org.springframework.data.mongodb.config.AbstractMongoClientConfiguration;
 import org.springframework.data.mongodb.core.convert.*;
 import org.springframework.data.mongodb.core.mapping.MongoMappingContext;
@@ -35,10 +36,6 @@ public class MongoConfig extends AbstractMongoClientConfiguration {
 
     @Autowired
     private MongoConnectionPoolListener connectionPoolListener;
-
-    public MongoConfig() {
-//        log.info("just for break");
-    }
 
     /**
      * 从第三方 API 获取凭证
@@ -79,19 +76,20 @@ public class MongoConfig extends AbstractMongoClientConfiguration {
             throw new IllegalStateException("MongoDB 凭证未初始化");
         }
 
-        // 构建连接字符串
+        // 构建连接字符串（添加副本集参数以支持事务）
         String connectionString = String.format(
-                "mongodb://%s:%s@%s:%d/%s?authSource=%s",
+                "mongodb://%s:%s@%s:%d/%s?authSource=%s&replicaSet=%s",
                 credentials.getUsername(),
                 credentials.getPassword(),
                 host,
                 port,
                 database,
-                "admin"
+                "admin",
+                "rs0"  // 副本集名称
         );
 
-        log.info("MongoDB 连接字符串: mongodb://{}:****@{}:{}/{}?authSource={}", 
-                 credentials.getUsername(), host, port, database, database);
+        log.info("MongoDB 连接字符串: mongodb://{}:****@{}:{}/{}?authSource=admin&replicaSet=rs0",
+                 credentials.getUsername(), host, port, database);
 
         // 使用MongoClientSettings来配置连接池监听器和参数
         MongoClientSettings settings = MongoClientSettings.builder()
@@ -163,5 +161,23 @@ public class MongoConfig extends AbstractMongoClientConfiguration {
         mappingMongoConverter.setTypeMapper(new DefaultMongoTypeMapper(null));
 
         return mappingMongoConverter;
+    }
+
+    /**
+     * 配置 MongoDB 事务管理器
+     * 这是让 @Transactional 注解生效的关键组件
+     *
+     * 前提条件：
+     * 1. MongoDB 必须是副本集（Replica Set）或分片集群模式
+     * 2. MongoDB 版本 >= 4.0（副本集）或 >= 4.2（分片）
+     * 3. 连接字符串必须包含 replicaSet 参数
+     *
+     * @param dbFactory MongoDB 数据库工厂
+     * @return MongoDB 事务管理器
+     */
+    @Bean
+    public MongoTransactionManager transactionManager(MongoDatabaseFactory dbFactory) {
+        log.info("初始化 MongoDB 事务管理器 - 支持 @Transactional 注解");
+        return new MongoTransactionManager(dbFactory);
     }
 }
