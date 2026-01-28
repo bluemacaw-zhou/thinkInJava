@@ -1,0 +1,92 @@
+version: '3.7'
+
+services:
+  # MongoDB 8.0.15 副本集 - CDC 需要副本集模式
+  mongodb:
+    image: 10.100.6.129:8987/mongo:8.0.15
+    container_name: mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin
+      MONGO_INITDB_DATABASE: im_message
+    entrypoint: ["/bin/bash", "-c"]
+    command: >
+      "cp /tmp/mongodb-keyfile /data/mongodb-keyfile &&
+       chown mongodb:mongodb /data/mongodb-keyfile &&
+       chmod 400 /data/mongodb-keyfile &&
+       exec docker-entrypoint.sh mongod --replSet rs0 --bind_ip_all --keyFile /data/mongodb-keyfile"
+    volumes:
+      - ~/docker/im-message/mongodb/data:/data/db
+      - ./init-scripts/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+      - ./init-scripts/mongodb-keyfile:/tmp/mongodb-keyfile:ro
+    networks:
+      - data-pipeline
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ClickHouse 24.3 - LTS 版本，与 MongoDB 8.x 兼容
+  clickhouse:
+    image: 10.100.6.129:8987/clickhouse/clickhouse-server:24.3
+    container_name: clickhouse
+    ports:
+      - "8123:8123"  # HTTP 接口
+      - "9000:9000"  # Native 接口
+    environment:
+      CLICKHOUSE_DB: im_message
+      CLICKHOUSE_USER: admin
+      CLICKHOUSE_PASSWORD: admin
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    volumes:
+      - ~/docker/im-message/clickhouse/data:/var/lib/clickhouse
+      - ./init-scripts/clickhouse-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - data-pipeline
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--user", "admin", "--password", "admin", "--query", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ClickHouse 官方 Web 管理界面 - Tabix
+  clickhouse-tabix:
+    image: 10.100.6.129:8987/spoonest/clickhouse-tabix-web-client:latest
+    container_name: clickhouse-tabix
+    ports:
+      - "8124:80"
+    networks:
+      - data-pipeline
+    depends_on:
+      - clickhouse
+
+  # RabbitMQ - 消息队列（业务服务通过消费者模式处理数据）
+  rabbitmq:
+    image: 10.100.6.129:8987/rabbitmq:3.12-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"   # AMQP 协议端口
+      - "15672:15672" # 管理界面端口
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin
+    volumes:
+      - ~/docker/im-message/rabbitmq/data:/var/lib/rabbitmq
+    networks:
+      - data-pipeline
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  data-pipeline:
+    driver: bridge
