@@ -1,7 +1,7 @@
 package io.bluemacaw.mongodb;
 
 import com.mongodb.client.result.UpdateResult;
-import io.bluemacaw.mongodb.entity.Employee;
+import io.bluemacaw.mongodb.entity.demo.Employee;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
