@@ -1,11 +1,12 @@
 package io.bluemacaw.mongodb.scheduler;
 
 import com.mongodb.client.ChangeStreamIterable;
-import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
 import com.mongodb.client.model.changestream.FullDocument;
-import io.bluemacaw.mongodb.service.MongoChangeStreamService;
+import io.bluemacaw.mongodb.changestream.ChangeStreamManager;
+import jakarta.annotation.PostConstruct;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.BsonDocument;
@@ -16,9 +17,25 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.util.concurrent.TimeUnit;
+
+import static io.bluemacaw.mongodb.util.ChangeStreamUtil.*;
+
 /**
- * MongoDB Change Stream定时任务调度器（单节点模式）
- * 定时执行Change Stream监听，适用于单节点部署
+ * MongoDB Change Stream 定时任务调度器（框架入口）
+ *
+ * 架构设计：
+ * 1. 此类作为框架入口，负责启动和管理 Database 级别的 Change Stream
+ * 2. 通过 ChangeStreamRouter 将事件路由到不同的处理器
+ * 3. 具体的业务逻辑由各个 ChangeStreamHandler 实现
+ * 4. 支持动态注册多个处理器，每个处理器处理不同的 collection
+ *
+ * 监听策略：
+ * - 使用 Database 级别 Change Stream
+ * - 通过 pipeline 过滤需要监听的 collection（可配置前缀）
+ * - 只需要一个 Resume Token，简化断点续传逻辑
+ *
+ * @author shzhou.michael
  */
 @Slf4j
 @Component
@@ -29,22 +46,61 @@ public class MongoChangeStreamScheduler {
     private MongoTemplate mongoTemplate;
 
     @Resource
-    private MongoChangeStreamService changeStreamService;
+    private ChangeStreamManager changeStreamManager;
 
-    @Value("${mongodb.change-stream.collection:message}")
-    private String collectionName;
-
-    @Value("${mongodb.change-stream.batch-size:100}")
+    @Value("${mongodb.change-stream.batch-size:1000}")
     private int batchSize;
 
-    @Value("${mongodb.change-stream.process-duration:8000}")
-    private long processDuration;
+    @Value("${mongodb.change-stream.max-await-time:4000}")
+    private long maxAwaitTime;
 
     /**
-     * 定时执行Change Stream监听
-     * cron表达式从配置文件读取，默认每10秒执行一次
+     * 启动时初始化 Resume Token 文档
+     *
+     * 说明：
+     * - 检查 change_stream_resume_tokens 集合中是否存在 resume token 文档
+     * - 如果不存在则创建初始文档（token=null）
+     * - 使用 upsert 操作确保多实例并发启动时的安全性
+     * - 如果 token 为 null，启动一次 Change Stream 获取初始 token
      */
-    @Scheduled(cron = "${mongodb.change-stream.schedule-cron:0/10 * * * * ?}")
+    @PostConstruct
+    public void init() {
+        try {
+            // 检查副本集状态
+            Document isMaster = mongoTemplate.executeCommand(new Document("isMaster", 1));
+            boolean isReplicaSet = isMaster.containsKey("setName");
+
+            log.info("MongoDB isMaster result: {}", isMaster.toJson());
+
+            if (!isReplicaSet) {
+                log.warn("MongoDB is NOT a replica set, Change Stream initialization skipped");
+                return;
+            } else {
+                log.info("MongoDB is a replica set, setName: {}", isMaster.getString("setName"));
+            }
+
+            // 初始化 Resume Token 文档
+            boolean initialized = initializeResumeToken(mongoTemplate);
+            if (!initialized) {
+                log.error("Failed to initialize resume token, Change Stream may not work properly");
+                return;
+            } else {
+                log.info("Resume token document initialized successfully");
+            }
+
+        } catch (Exception e) {
+            log.error("Failed to initialize MongoChangeStreamScheduler", e);
+        }
+    }
+
+
+    /**
+     * 定时执行 Change Stream 监听
+     * cron 表达式从配置文件读取，默认每 5 秒执行一次
+     *
+     * 说明：由 PowerJob 统一调度，避免分布式环境下的重复执行
+     */
+    @Scheduled(cron = "${mongodb.change-stream.schedule-cron:0/5 * * * * ?}")
     public void processChangeStream() {
         try {
             processChanges();
@@ -54,176 +110,98 @@ public class MongoChangeStreamScheduler {
     }
 
     /**
-     * 处理Change Stream事件
+     * 处理 Change Stream 事件
+     *
+     * 使用 Database 级别的 Change Stream 监听所有 collection
+     * 通过 pipeline 过滤出 message_ 开头的 collection
      */
     private void processChanges() {
-        MongoCollection<Document> collection = mongoTemplate.getCollection(collectionName);
-
-        // 检查MongoDB副本集状态
-        try {
-            Document isMaster = mongoTemplate.executeCommand(new Document("isMaster", 1));
-            boolean isReplicaSet = isMaster.containsKey("setName");
-            if (!isReplicaSet) {
-                log.error("MongoDB is NOT a replica set, Change Stream disabled");
-                return;
-            }
-        } catch (Exception e) {
-            log.error("Failed to check replica set status", e);
-            return;
-        }
-
-        // 尝试从上次中断的位置恢复
-        String resumeToken = changeStreamService.getResumeToken(mongoTemplate, collectionName);
-
+        MongoDatabase database = mongoTemplate.getDb();
+        String resumeToken = getResumeToken(mongoTemplate);
         ChangeStreamIterable<Document> changeStream;
+        boolean needHeartbeat = false;
 
+        // 监听整个 database，不使用 pipeline 过滤
+        // 具体的 collection 过滤由各个 Handler 的 supports() 方法决定
         if (resumeToken != null) {
-            log.debug("Resuming from saved token");
+            // 使用 resumeToken 恢复
             try {
                 BsonDocument resumeBsonToken = BsonDocument.parse(resumeToken);
-                changeStream = collection.watch()
-                    .fullDocument(FullDocument.UPDATE_LOOKUP)
-                    .resumeAfter(resumeBsonToken)
-                    .batchSize(batchSize)
-                    .maxAwaitTime(1000, java.util.concurrent.TimeUnit.MILLISECONDS);
+                changeStream = database.watch()
+                        .fullDocument(FullDocument.UPDATE_LOOKUP)
+                        .resumeAfter(resumeBsonToken)
+                        .batchSize(batchSize)
+                        .maxAwaitTime(maxAwaitTime, TimeUnit.MILLISECONDS);
             } catch (Exception e) {
-                log.warn("Resume token invalid, starting new stream", e);
-                changeStream = collection.watch()
-                    .fullDocument(FullDocument.UPDATE_LOOKUP)
-                    .batchSize(batchSize)
-                    .maxAwaitTime(1000, java.util.concurrent.TimeUnit.MILLISECONDS);
+                log.error("Resume token invalid, will insert heartbeat after starting Change Stream", e);
+                // token 无效，标记需要插入心跳
+                needHeartbeat = true;
+                changeStream = database.watch()
+                        .fullDocument(FullDocument.UPDATE_LOOKUP)
+                        .batchSize(batchSize)
+                        .maxAwaitTime(maxAwaitTime, TimeUnit.MILLISECONDS);
             }
         } else {
-            log.debug("Starting new Change Stream");
-            changeStream = collection.watch()
-                .fullDocument(FullDocument.UPDATE_LOOKUP)
-                .batchSize(batchSize)
-                .maxAwaitTime(1000, java.util.concurrent.TimeUnit.MILLISECONDS);
+            // 没有 resumeToken，标记需要插入心跳
+            needHeartbeat = true;
+            changeStream = database.watch()
+                    .fullDocument(FullDocument.UPDATE_LOOKUP)
+                    .batchSize(batchSize)
+                    .maxAwaitTime(maxAwaitTime, TimeUnit.MILLISECONDS);
         }
-
-        // 设置最大处理时间
-        long startTime = System.currentTimeMillis();
-        long endTime = startTime + processDuration;
 
         int eventCount = 0;
         BsonDocument lastResumeToken = null;
 
         try (MongoCursor<ChangeStreamDocument<Document>> cursor = changeStream.iterator()) {
 
-            // 检查是否有待处理的事件
-            boolean hasAnyEvent = false;
-            while (System.currentTimeMillis() < endTime) {
-                try {
-                    // 使用 tryNext() 而不是 hasNext() + next()，避免无限阻塞
-                    ChangeStreamDocument<Document> changeEvent = cursor.tryNext();
+            // 如果需要心跳，在 Change Stream 启动后立即插入
+            if (needHeartbeat) {
+                insertHeartbeat(mongoTemplate);
+                log.debug("Heartbeat inserted to initialize resume token");
+            }
 
-                    if (changeEvent == null) {
-                        // 没有新事件，短暂休眠后继续检查
-                        Thread.sleep(100);
-                        continue;
-                    }
+            while (true) {
+                ChangeStreamDocument<Document> changeEvent = cursor.tryNext();
 
-                    hasAnyEvent = true;
-                    eventCount++;
+                if (changeEvent == null) {
+                    log.debug("No more change events available");
+                    break;
+                }
 
-                    log.info("Change Stream event: type={}, id={}",
+                String collectionName = changeEvent.getNamespace().getCollectionName();
+
+                // 过滤掉系统集合的事件，避免无限循环
+                if ("changestream_heartbeat".equals(collectionName) ||
+                    "change_stream_resume_tokens".equals(collectionName)) {
+                    lastResumeToken = changeEvent.getResumeToken();
+                    log.debug("Skipped system collection event: {}", collectionName);
+                    continue;
+                }
+
+                eventCount++;
+
+                log.debug("Change Stream event: collection={}, type={}, id={}",
+                        collectionName,
                         changeEvent.getOperationType().getValue(),
                         changeEvent.getDocumentKey());
 
-                    try {
-                        handleChangeEvent(changeEvent);
-                        lastResumeToken = changeEvent.getResumeToken();
-
-                    } catch (Exception e) {
-                        log.error("Event handling error", e);
-                        // 继续处理下一个事件
-                    }
-                } catch (InterruptedException e) {
-                    log.warn("Change Stream interrupted", e);
-                    Thread.currentThread().interrupt();
-                    break;
-                }
+                changeStreamManager.route(collectionName, changeEvent);
+                lastResumeToken = changeEvent.getResumeToken();
             }
 
-            // 刷新Service层的批量缓存
-            changeStreamService.flushBatchCache();
-            
-            // 始终保存resume token（确保下次从当前位置继续）
+            changeStreamManager.flushAllHandlers();
+
             if (lastResumeToken != null) {
-                changeStreamService.saveResumeToken(
-                    lastResumeToken.toJson(),
-                    mongoTemplate,
-                    collectionName
-                );
+                saveResumeToken(lastResumeToken.toJson(), mongoTemplate);
             }
 
-            if (hasAnyEvent) {
-                long actualDuration = System.currentTimeMillis() - startTime;
-                log.info("Processed {} events in {} ms", eventCount, actualDuration);
+            if (eventCount > 0) {
+                log.info("Processed {} Change Stream events", eventCount);
             }
 
         } catch (Exception e) {
             log.error("Change Stream error", e);
-
-            // 保存最后成功处理的token
-            if (lastResumeToken != null) {
-                changeStreamService.saveResumeToken(
-                    lastResumeToken.toJson(),
-                    mongoTemplate,
-                    collectionName
-                );
-            }
-        }
-    }
-
-    /**
-     * 处理Change Stream事件
-     */
-    private void handleChangeEvent(ChangeStreamDocument<Document> changeEvent) {
-        String operationType = changeEvent.getOperationType().getValue();
-
-        switch (operationType) {
-            case "insert":
-                Document fullDocument = changeEvent.getFullDocument();
-                if (fullDocument != null) {
-                    changeStreamService.handleInsert(fullDocument);
-                } else {
-                    log.warn("Insert event missing document");
-                }
-                break;
-
-            case "update":
-                org.bson.BsonDocument bsonDocumentKey = changeEvent.getDocumentKey();
-                Document documentKey = bsonDocumentKey != null ? Document.parse(bsonDocumentKey.toJson()) : null;
-                Document updateDescription = changeEvent.getUpdateDescription() != null ?
-                    new Document("updatedFields", changeEvent.getUpdateDescription().getUpdatedFields())
-                        .append("removedFields", changeEvent.getUpdateDescription().getRemovedFields())
-                    : new Document();
-
-                changeStreamService.handleUpdate(documentKey, updateDescription);
-                break;
-
-            case "delete":
-                org.bson.BsonDocument bsonDeleteKey = changeEvent.getDocumentKey();
-                Document deleteKey = bsonDeleteKey != null ? Document.parse(bsonDeleteKey.toJson()) : null;
-                if (deleteKey != null) {
-                    changeStreamService.handleDelete(deleteKey);
-                } else {
-                    log.warn("Delete event missing document key");
-                }
-                break;
-
-            case "replace":
-                Document replaceDocument = changeEvent.getFullDocument();
-                if (replaceDocument != null) {
-                    changeStreamService.handleReplace(replaceDocument);
-                } else {
-                    log.warn("Replace event missing document");
-                }
-                break;
-
-            default:
-                log.debug("Unhandled operation: {}", operationType);
         }
     }
 }
