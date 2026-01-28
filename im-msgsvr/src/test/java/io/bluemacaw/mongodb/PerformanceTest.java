@@ -1,8 +1,9 @@
 package io.bluemacaw.mongodb;
 
-import io.bluemacaw.mongodb.entity.DeviceSyncState;
-import io.bluemacaw.mongodb.entity.Session;
-import io.bluemacaw.mongodb.entity.UserSessionState;
+import io.bluemacaw.mongodb.entity.Channel;
+import io.bluemacaw.mongodb.entity.DeviceSubscription;
+import io.bluemacaw.mongodb.entity.UserSubscription;
+import io.bluemacaw.mongodb.enums.ChannelType;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
@@ -30,27 +31,27 @@ public class PerformanceTest {
 
     @Test
     public void testInsert(){
-        Session session = new Session();
-        session.setId("1");
-        session.setSessionType(0);
-        session.setVersion(100000);
-        mongoTemplate.save(session);
+        Channel channel = new Channel();
+        channel.setId("1");
+        channel.setChannelType(ChannelType.PRIVATE.getCode());
+        channel.setMessageVersion(100000L);
+        mongoTemplate.save(channel);
 
-        UserSessionState userSessionState = new UserSessionState();
-        userSessionState.setId("1");
-        userSessionState.setSessionId("123_456");
-        userSessionState.setUserId(123);
-        userSessionState.setSessionType(0);
-        userSessionState.setLastReadVersion(100001);
-        mongoTemplate.save(userSessionState);
+        UserSubscription userSubscription = new UserSubscription();
+        userSubscription.setId("1");
+        userSubscription.setChannelId("123_456");
+        userSubscription.setUserId(123L);
+        userSubscription.setChannelType(ChannelType.PRIVATE.getCode());
+        userSubscription.setLastReadVersion(100001L);
+        mongoTemplate.save(userSubscription);
 
-        DeviceSyncState deviceSyncState = new DeviceSyncState();
-        deviceSyncState.setId("1");
-        deviceSyncState.setSessionId("123_456");
-        deviceSyncState.setDeviceId(UUID.randomUUID().toString());
-        deviceSyncState.setSessionType(0);
-        deviceSyncState.setLastSyncVersion(0);
-        mongoTemplate.save(deviceSyncState);
+        DeviceSubscription deviceSubscription = new DeviceSubscription();
+        deviceSubscription.setId("1");
+        deviceSubscription.setChannelId("123_456");
+        deviceSubscription.setDeviceId(UUID.randomUUID().toString());
+        deviceSubscription.setUserId(123L);
+        deviceSubscription.setLastSyncVersion(0L);
+        mongoTemplate.save(deviceSubscription);
     }
 
     /**
@@ -92,23 +93,23 @@ public class PerformanceTest {
         long totalSessions = (long) TOTAL_USERS * SESSIONS_PER_USER;
         long insertedCount = 0;
 
-        List<Session> sessionBatch = new ArrayList<>(BATCH_SIZE);
+        List<Channel> channelBatches = new ArrayList<>(BATCH_SIZE);
 
         for (int userId = 1; userId <= TOTAL_USERS; userId++) {
             for (int sessionIndex = 1; sessionIndex <= SESSIONS_PER_USER; sessionIndex++) {
-                String sessionId = userId + "_" + sessionIndex;
-                Session session = new Session();
-                session.setId(sessionId);
-                session.setSessionType(0); // 0: 单聊, 1: 群聊
-                // 版本号设置为随机值,模拟真实场景
-                session.setVersion(100000);
+                String channelId = userId + "_" + sessionIndex;
+                Channel channel = new Channel();
+                channel.setId(channelId);
+                channel.setChannelType(ChannelType.PRIVATE.getCode()); // direct: 私聊, group: 群聊
+                // 消息版本号设置为随机值,模拟真实场景
+                channel.setMessageVersion(100000L);
 
-                sessionBatch.add(session);
+                channelBatches.add(channel);
 
-                if (sessionBatch.size() >= BATCH_SIZE) {
-                    mongoTemplate.insertAll(sessionBatch);
-                    insertedCount += sessionBatch.size();
-                    sessionBatch.clear();
+                if (channelBatches.size() >= BATCH_SIZE) {
+                    mongoTemplate.insertAll(channelBatches);
+                    insertedCount += channelBatches.size();
+                    channelBatches.clear();
 
                     if (insertedCount % 100000 == 0) {
                         log.info("Session插入进度: {}/{} ({} %)",
@@ -120,9 +121,9 @@ public class PerformanceTest {
         }
 
         // 插入剩余数据
-        if (!sessionBatch.isEmpty()) {
-            mongoTemplate.insertAll(sessionBatch);
-            insertedCount += sessionBatch.size();
+        if (!channelBatches.isEmpty()) {
+            mongoTemplate.insertAll(channelBatches);
+            insertedCount += channelBatches.size();
         }
 
         long endTime = System.currentTimeMillis();
@@ -141,7 +142,7 @@ public class PerformanceTest {
         long totalStates = (long) TOTAL_USERS * SESSIONS_PER_USER;
         long insertedCount = 0;
 
-        List<UserSessionState> stateBatch = new ArrayList<>(BATCH_SIZE);
+        List<UserSubscription> stateBatch = new ArrayList<>(BATCH_SIZE);
 
         // 随机选择10个会话作为有未读数的会话
         List<Integer> unreadSessionIndices = new ArrayList<>();
@@ -154,21 +155,21 @@ public class PerformanceTest {
 
         for (int userId = 1; userId <= TOTAL_USERS; userId++) {
             for (int sessionIndex = 1; sessionIndex <= SESSIONS_PER_USER; sessionIndex++) {
-                String sessionId = userId + "_" + sessionIndex;
-                UserSessionState userSessionState = new UserSessionState();
-                userSessionState.setId(userId + "_state_" + sessionIndex);
-                userSessionState.setSessionId(sessionId);
-                userSessionState.setUserId(userId);
-                userSessionState.setSessionType(0);
+                String channelId = userId + "_" + sessionIndex;
+                UserSubscription userSubscription = new UserSubscription();
+                userSubscription.setId(userId + "_state_" + sessionIndex);
+                userSubscription.setChannelId(channelId);
+                userSubscription.setUserId((long)userId);
+                userSubscription.setChannelType(ChannelType.PRIVATE.getCode());
 
-                // 如果是未读会话,lastReadVersion > Session.version
+                // 如果是未读会话,lastReadVersion > Channel.messageVersion
                 if (unreadSessionIndices.contains(sessionIndex)) {
-                    userSessionState.setLastReadVersion(100001);
+                    userSubscription.setLastReadVersion(100001L);
                 } else {
-                    userSessionState.setLastReadVersion(100000);
+                    userSubscription.setLastReadVersion(100000L);
                 }
 
-                stateBatch.add(userSessionState);
+                stateBatch.add(userSubscription);
 
                 if (stateBatch.size() >= BATCH_SIZE) {
                     mongoTemplate.insertAll(stateBatch);
@@ -206,7 +207,7 @@ public class PerformanceTest {
         long totalStates = (long) TOTAL_USERS * DEVICES_PER_USER * SESSIONS_PER_USER;
         long insertedCount = 0;
 
-        List<DeviceSyncState> stateBatch = new ArrayList<>(BATCH_SIZE);
+        List<DeviceSubscription> stateBatch = new ArrayList<>(BATCH_SIZE);
         String[] deviceTypes = {"PC", "MOBILE"};
 
         for (int userId = 1; userId <= TOTAL_USERS; userId++) {
@@ -226,21 +227,21 @@ public class PerformanceTest {
                 }
 
                 for (int sessionIndex = 1; sessionIndex <= SESSIONS_PER_USER; sessionIndex++) {
-                    String sessionId = userId + "_" + sessionIndex;
-                    DeviceSyncState deviceSyncState = new DeviceSyncState();
-                    deviceSyncState.setId(userId + "_" + deviceTypes[deviceIdx] + "_" + sessionIndex);
-                    deviceSyncState.setSessionId(sessionId);
-                    deviceSyncState.setDeviceId(deviceIds[deviceIdx]);
-                    deviceSyncState.setSessionType(random.nextInt(3));
+                    String channelId = userId + "_" + sessionIndex;
+                    DeviceSubscription deviceSubscription = new DeviceSubscription();
+                    deviceSubscription.setId(userId + "_" + deviceTypes[deviceIdx] + "_" + sessionIndex);
+                    deviceSubscription.setChannelId(channelId);
+                    deviceSubscription.setUserId((long)userId);
+                    deviceSubscription.setDeviceId(deviceIds[deviceIdx]);
 
-                    // 如果是未读会话,lastSyncVersion > Session.version
+                    // 如果是未同步会话,lastSyncVersion < Channel.messageVersion
                     if (unsyncSessionIndices.contains(sessionIndex)) {
-                        deviceSyncState.setLastSyncVersion(100001);
+                        deviceSubscription.setLastSyncVersion(99999L);
                     } else {
-                        deviceSyncState.setLastSyncVersion(100000);
+                        deviceSubscription.setLastSyncVersion(100000L);
                     }
 
-                    stateBatch.add(deviceSyncState);
+                    stateBatch.add(deviceSubscription);
 
                     if (stateBatch.size() >= BATCH_SIZE) {
                         mongoTemplate.insertAll(stateBatch);
