@@ -16,10 +16,17 @@
 
 spring:
   rabbitmq:
-    host: 192.168.254.129
+    host: 10.106.51.218
     port: 5672
     username: admin
     password: admin
+    
+    # 全局配置
+    listener:
+      simple:
+        acknowledge-mode: manual  # 全局设置手动ACK模式
+        prefetch: 16             # 全局prefetch设置，每个消费者预取20条消息
+    
     exchangeMessage: 'ex.message'
     
     # 单条消息队列（实时数据）
@@ -30,49 +37,64 @@ spring:
     queueMessageBatch: 'queue.message.batch'
     routeMessageBatch: 'route.message.batch'
 
-    # ClickHouse专用队列配置
-    exchangeClickhouse: 'ex.clickhouse.analysis'
+    # Change Stream 事件队列配置
+    # 所有 Collection 都使用 Fanout Exchange（广播模式，方便后续扩展）
 
-    # 批量消息队列配置
-    queueClickhouseBatch: 'queue.clickhouse.batch'
-    routeClickhouseBatch: 'route.clickhouse.batch'
+    # Channel collection Fanout Exchange
+    exchangeChangeStreamChannel: 'ex.changestream.channel.fanout'
+    # Channel 变更队列 - ClickHouse 消费者
+    queueChangeStreamChannelClickHouse: 'queue.changestream.channel.clickhouse'
 
-    listener:
-      type: direct
-      direct:
-        prefetch: 500                      # 预取数量（批量模式下建议500-1000）
-        concurrency: 32                    # 消费线程池核心线程数（批量模式建议提高）
-        max-concurrency: 64                # 消费线程池最大线程数
-        acknowledge-mode: manual           # 手动确认消息
+    # UserSubscription collection Fanout Exchange
+    exchangeChangeStreamUserSub: 'ex.changestream.usersub.fanout'
+    # UserSubscription 变更队列 - ClickHouse 消费者
+    queueChangeStreamUserSubClickHouse: 'queue.changestream.usersub.clickhouse'
 
-# RabbitMQ 消费者配置
-rabbitmq:
-  consumer:
-    batch-enabled: true                    # 启用批量消费模式（true=批量，false=单条）
-    batch-size: 10000                        # 批量大小（达到此数量触发批处理）
-    batch-timeout: 5000                    # 批量超时（毫秒，超过此时间触发批处理）
-    concurrency: 1                        # 消费者并发数
+    # Message collection Fanout Exchange
+    exchangeChangeStreamMessage: 'ex.changestream.message.fanout'
+    # Message 变更队列 - ClickHouse 消费者
+    queueChangeStreamMessageClickHouse: 'queue.changestream.message.clickhouse'
+    # Message 变更队列 - Redis 消费者
+    queueChangeStreamMessageRedis: 'queue.changestream.message.redis'
+    # Message 变更队列 - ES 消费者
+    queueChangeStreamMessageES: 'queue.changestream.message.es'
 
 mongodb:
-  host: 192.168.254.129
+  host: 10.106.51.218
   port: 27017
-  database: message
+  database: im_message
 
-  # Change Stream配置
+  # Change Stream 配置
   change-stream:
-    enabled: true                    # 是否启用Change Stream
-    collection: message              # 监听的集合名称
-    batch-size: 100                  # 批量处理大小
-    resume-token-collection: change_stream_resume_tokens  # 存储resume token的集合
-    schedule-cron: "0/10 * * * * ?"  # 定时任务cron表达式(每10秒执行一次)
-    process-duration: 8000           # 每次处理持续时间(毫秒)
+    enabled: true                                         # 是否启用 Change Stream
+    batch-size: 1000                                      # MongoDB 单次拉取事件数量（网络传输批次大小）
+    max-await-time: 4000                                  # 没有事件时的等待时间（毫秒，4秒等待以捕获心跳）
+    resume-token-collection: change_stream_resume_tokens  # 存储 resume token 的集合
+    schedule-cron: 0/5 * * * * ?                          # 定时任务执行频率（每5秒执行一次）
+
+  # Seq分配配置
+  seq-assignment:
+    boundary-date: 2026-01-06                             # seq分配的时间分界点（消息日期在此之前递减，之后递增）
+
+  # Mock数据配置
+  mock-data:
+    total-users: 30000                                    # 用户总数（在线活跃用户）
+    wind-user-ratio: 0.7                                  # Wind员工占比（70%）
+    user-id-start: 100001                                 # 用户ID起始值（100001-130000）
+    user-id-end: 130000                                   # 用户ID结束值
+
+    total-groups: 1000                                    # 群总数
+    min-group-members: 5                                  # 群最小成员数
+    max-group-members: 20                                 # 群最大成员数
+    group-id-start: 500001                                # 群ID起始值
+    group-id-end: 501000                                  # 群ID结束值（500001-501000）
 
 clickhouse:
-  url: jdbc:clickhouse://192.168.254.129:8123/message
+  url: jdbc:clickhouse://10.106.51.218:8123/im_message
   username: admin
   password: admin
-  database: message
-  table: msg_analysis_data
+  database: im_message
+  table: message
 
   # HikariCP连接池配置
   hikari:
