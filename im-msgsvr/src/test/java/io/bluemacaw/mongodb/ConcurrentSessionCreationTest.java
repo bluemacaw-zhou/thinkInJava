@@ -1,14 +1,12 @@
 package io.bluemacaw.mongodb;
 
-import io.bluemacaw.mongodb.entity.Session;
-import io.bluemacaw.mongodb.service.SessionService;
+import io.bluemacaw.mongodb.entity.Channel;
+import io.bluemacaw.mongodb.service.ChannelService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -18,10 +16,10 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 @Slf4j
 @SpringBootTest
-public class ConcurrentSessionCreationTest {
+public class ConcurrentChannelCreationTest {
 
     @Resource
-    private SessionService sessionService;
+    private ChannelService channelService;
 
     /**
      * 测试并发创建同一个 Session
@@ -31,7 +29,7 @@ public class ConcurrentSessionCreationTest {
     public void testConcurrentSessionCreation() throws InterruptedException {
         String testSessionId = "test_user_1_2";
         int threadCount = 50;  // 模拟 50 个线程
-        int sessionType = 0;   // 私聊
+        int channelType = 0;   // 私聊
 
         // 创建线程池
         ExecutorService executorService = Executors.newFixedThreadPool(threadCount);
@@ -50,16 +48,16 @@ public class ConcurrentSessionCreationTest {
                     startLatch.await();
 
                     // 尝试创建 Session
-                    Session session = sessionService.ensureSessionExists(testSessionId, sessionType);
+                    Channel channel = channelService.ensureChannelExists(testSessionId, channelType);
 
-                    if (session != null) {
+                    if (channel != null) {
                         successCount.incrementAndGet();
 
 //                        log.info("线程 {} 成功获取 Session: {}, version: {}",
 //                                threadId, session.getId(), session.getVersion());
 
                         // 创建成功后 模拟并发发送消息 版本号自增
-                        Long version = sessionService.incrementVersion(testSessionId, 1);
+                        Long version = channelService.incrementAndGetMessageVersion(testSessionId);
                         log.info("current version: {}", version);
                     } else {
                         failCount.incrementAndGet();
@@ -92,7 +90,7 @@ public class ConcurrentSessionCreationTest {
             log.error("测试超时,部分线程未完成");
         }
 
-        Session session = sessionService.getSession(testSessionId);
-        log.info("session: {}", session);
+        Channel channel = channelService.getChannel(testSessionId);
+        log.info("session: {}", channel);
     }
 }
