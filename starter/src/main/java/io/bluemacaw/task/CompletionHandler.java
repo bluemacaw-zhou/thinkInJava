@@ -1,4 +1,4 @@
-package cn.com.wind.IMStarter.task;
+package io.bluemacaw.task;
 
 /**
  * 任务完成处理器接口

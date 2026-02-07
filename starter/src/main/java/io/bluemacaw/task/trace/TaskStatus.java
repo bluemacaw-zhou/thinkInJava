@@ -1,4 +1,4 @@
-package cn.com.wind.IMStarter.task.trace;
+package io.bluemacaw.task.trace;
 
 /**
  * 任务执行状态

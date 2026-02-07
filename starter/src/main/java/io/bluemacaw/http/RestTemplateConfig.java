@@ -1,4 +1,4 @@
-package cn.com.wind.IMStarter.http;
+package io.bluemacaw.http;
 
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;

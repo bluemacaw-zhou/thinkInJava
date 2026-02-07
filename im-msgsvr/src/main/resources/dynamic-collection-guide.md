@@ -31,7 +31,7 @@ public class MsgData {
 
 ```java
 // ❌ 这种方式也有问题
-@Document(collection = "#{T(io.bluemacaw.mongodb.util.CollectionNameUtil).getCurrentMessageCollection()}")
+@Document(collection = "#{T(io.bluemacaw.msgsvr.util.CollectionNameUtil).getCurrentMessageCollection()}")
 public class MsgData { }
 ```
 

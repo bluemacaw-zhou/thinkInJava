@@ -1,4 +1,4 @@
-package cn.com.wind.IMStarter.thread;
+package io.bluemacaw.thread;
 
 import lombok.extern.slf4j.Slf4j;
 

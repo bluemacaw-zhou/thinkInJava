@@ -1,7 +1,6 @@
-package cn.com.wind.IMStarter.task;
+package io.bluemacaw.task;
 
-import cn.com.wind.IMStarter.task.trace.TaskTrace;
-
+import io.bluemacaw.task.trace.TaskTrace;
 import java.util.ArrayList;
 import java.util.List;
 

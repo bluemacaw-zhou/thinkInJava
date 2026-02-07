@@ -1,4 +1,4 @@
-package cn.com.wind.IMStarter.task.trace;
+package io.bluemacaw.task.trace;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

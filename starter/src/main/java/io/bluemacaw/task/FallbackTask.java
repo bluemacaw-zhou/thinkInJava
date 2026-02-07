@@ -1,4 +1,4 @@
-package cn.com.wind.IMStarter.task;
+package io.bluemacaw.task;
 
 /**
  * 带降级处理的任务包装器

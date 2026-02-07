@@ -1,4 +1,4 @@
-package cn.com.wind.IMStarter.task;
+package io.bluemacaw.task;
 
 /**
  * 异常恢复任务

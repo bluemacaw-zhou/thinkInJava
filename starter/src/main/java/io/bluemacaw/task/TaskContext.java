@@ -1,6 +1,6 @@
-package cn.com.wind.IMStarter.task;
+package io.bluemacaw.task;
 
-import cn.com.wind.IMStarter.task.trace.ExecutionTrace;
+import io.bluemacaw.task.trace.ExecutionTrace;
 import org.slf4j.MDC;
 
 import java.util.Map;

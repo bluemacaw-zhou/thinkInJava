@@ -1,4 +1,4 @@
-package cn.com.wind.IMStarter.thread;
+package io.bluemacaw.thread;
 
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;

@@ -1,4 +1,4 @@
-package cn.com.wind.IMStarter.rabbitmq;
+package io.bluemacaw.rabbitmq;
 
 import org.slf4j.MDC;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;

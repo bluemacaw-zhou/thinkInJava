@@ -1,4 +1,4 @@
-package cn.com.wind.IMStarter.task;
+package io.bluemacaw.task;
 
 import java.util.ArrayList;
 import java.util.List;

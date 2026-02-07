@@ -1,4 +1,4 @@
-package cn.com.wind.IMStarter.task.trace;
+package io.bluemacaw.task.trace;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
