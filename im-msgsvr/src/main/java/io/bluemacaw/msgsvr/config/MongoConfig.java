@@ -23,11 +23,8 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 @Configuration
 public class MongoConfig extends AbstractMongoClientConfiguration {
-    @Value("${mongodb.host}")
-    private String host;
-
-    @Value("${mongodb.port}")
-    private int port;
+    @Value("${mongodb.hosts}")
+    private String hosts;
 
     @Value("${mongodb.database}")
     private String database;
@@ -44,18 +41,13 @@ public class MongoConfig extends AbstractMongoClientConfiguration {
     public void initCredentials() {
         try {
             // 验证配置值是否正确映射
-            log.info("验证配置映射 - Host: {}, Port: {}, Database: {}", host, port, database);
-            
-            if (host == null || host.trim().isEmpty()) {
-                log.error("MongoDB host 配置未正确映射，当前值: {}", host);
-                throw new IllegalStateException("MongoDB host 配置缺失");
+            log.info("验证配置映射 - Hosts: {}, Database: {}", hosts, database);
+
+            if (hosts == null || hosts.trim().isEmpty()) {
+                log.error("MongoDB hosts 配置未正确映射，当前值: {}", hosts);
+                throw new IllegalStateException("MongoDB hosts 配置缺失");
             }
-            
-            if (port == 0) {
-                log.error("MongoDB port 配置未正确映射，当前值: {}", port);
-                throw new IllegalStateException("MongoDB port 配置缺失");
-            }
-            
+
             if (database == null || database.trim().isEmpty()) {
                 log.error("MongoDB database 配置未正确映射，当前值: {}", database);
                 throw new IllegalStateException("MongoDB database 配置缺失");
@@ -76,24 +68,19 @@ public class MongoConfig extends AbstractMongoClientConfiguration {
             throw new IllegalStateException("MongoDB 凭证未初始化");
         }
 
-        // 构建连接字符串
-        // directConnection=true：强制只连接指定节点，不自动发现副本集其他成员
-        //   - 本地开发时远程 MongoDB 的副本集成员地址是 K8s 内部域名，本地无法解析
-        //   - directConnection=true 绕过副本集成员自动发现，避免 UnknownHostException
-        // replicaSet=rs0：保留副本集名称以支持事务（directConnection 模式下仍然有效）
+        // 构建连接字符串（副本集模式，Driver 自动发现 PRIMARY）
         String connectionString = String.format(
-                "mongodb://%s:%s@%s:%d/%s?authSource=%s&replicaSet=%s&directConnection=true",
+                "mongodb://%s:%s@%s/%s?authSource=%s&replicaSet=%s",
                 credentials.getUsername(),
                 credentials.getPassword(),
-                host,
-                port,
+                hosts,
                 database,
                 "admin",
                 "rs0"
         );
 
-        log.info("MongoDB 连接字符串: mongodb://{}:****@{}:{}/{}?authSource=admin&replicaSet=rs0&directConnection=true",
-                 credentials.getUsername(), host, port, database);
+        log.info("MongoDB 连接字符串: mongodb://{}:****@{}/{}?authSource=admin&replicaSet=rs0",
+                 credentials.getUsername(), hosts, database);
 
         // 使用MongoClientSettings来配置连接池监听器和参数
         MongoClientSettings settings = MongoClientSettings.builder()
