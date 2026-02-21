@@ -76,19 +76,23 @@ public class MongoConfig extends AbstractMongoClientConfiguration {
             throw new IllegalStateException("MongoDB 凭证未初始化");
         }
 
-        // 构建连接字符串（添加副本集参数以支持事务）
+        // 构建连接字符串
+        // directConnection=true：强制只连接指定节点，不自动发现副本集其他成员
+        //   - 本地开发时远程 MongoDB 的副本集成员地址是 K8s 内部域名，本地无法解析
+        //   - directConnection=true 绕过副本集成员自动发现，避免 UnknownHostException
+        // replicaSet=rs0：保留副本集名称以支持事务（directConnection 模式下仍然有效）
         String connectionString = String.format(
-                "mongodb://%s:%s@%s:%d/%s?authSource=%s&replicaSet=%s",
+                "mongodb://%s:%s@%s:%d/%s?authSource=%s&replicaSet=%s&directConnection=true",
                 credentials.getUsername(),
                 credentials.getPassword(),
                 host,
                 port,
                 database,
                 "admin",
-                "rs0"  // 副本集名称
+                "rs0"
         );
 
-        log.info("MongoDB 连接字符串: mongodb://{}:****@{}:{}/{}?authSource=admin&replicaSet=rs0",
+        log.info("MongoDB 连接字符串: mongodb://{}:****@{}:{}/{}?authSource=admin&replicaSet=rs0&directConnection=true",
                  credentials.getUsername(), host, port, database);
 
         // 使用MongoClientSettings来配置连接池监听器和参数
@@ -116,8 +120,8 @@ public class MongoConfig extends AbstractMongoClientConfiguration {
      */
     private MongoCredentials fetchCredentialsFromThirdParty() {
         // 省去请求账号密码的逻辑
-        String userName = "admin";
-        String password = "admin";
+        String userName = "michael";
+        String password = "michael";
 
         return new MongoCredentials(userName, password);
     }
